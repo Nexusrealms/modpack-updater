@@ -8,6 +8,7 @@ use std::{fmt::Display, path::PathBuf};
 mod config;
 mod generate;
 mod mrpack;
+const UPDATE_ENDPOINT: &str = "/update";
 fn main() {
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
@@ -63,7 +64,9 @@ impl eframe::App for NMUClient {
             if ui.button("Select work folder").clicked() {
                 if let Some(path) = rfd::FileDialog::new().pick_folder() {
                     self.work_folder = Some(path);
-                    if let Ok(updater_config) = load_config(&self.work_folder.as_ref().unwrap().as_path()){
+                    if let Ok(updater_config) =
+                        load_config(&self.work_folder.as_ref().unwrap().as_path())
+                    {
                         if let Some(url) = updater_config.pack_endpoint {
                             self.pack_endpoint = url.clone();
                             self.pack_source = PackSource::Url(url);
@@ -89,8 +92,7 @@ impl eframe::App for NMUClient {
                 ui.text_edit_singleline(&mut self.pack_endpoint)
                     .labelled_by(label.id);
                 if ui.button("Set").clicked() {
-                    self.pack_source =
-                        PackSource::Url(self.pack_endpoint.clone())
+                    self.pack_source = PackSource::Url(self.pack_endpoint.clone())
                 }
             });
             ui.label("Pack source: ");
@@ -99,6 +101,12 @@ impl eframe::App for NMUClient {
             if ui.button("Run").clicked() {
                 self.last_run_result = match run(self) {
                     Ok(_) => String::from("Ran!"),
+                    Err(s) => String::from(s),
+                }
+            }
+            if ui.button("Update").clicked() {
+                self.last_run_result = match update(self) {
+                    Ok(_) => String::from("Updated!"),
                     Err(s) => String::from(s),
                 }
             }
@@ -112,21 +120,47 @@ impl eframe::App for NMUClient {
         });
     }
 }
+fn update(nmu: &NMUClient) -> Result<(), &'static str> {
+    if let PackSource::Url(url) = &nmu.pack_source {
+        if let Ok(response) = reqwest::blocking::get(url.clone() + UPDATE_ENDPOINT) {
+            if let Ok(boolean) = serde_json::from_str(
+                response
+                    .text()
+                    .expect("Api response was not readable as text and im tired of if lets")
+                    .as_str(),
+            ) {
+                if boolean {
+                    run(nmu)
+                } else {
+                    Err("Pack is not updated")
+                }
+            } else {
+                Err("Could not deserialize update check response")
+            }
+        } else {
+            Err("Could not GET from update endpoint")
+        }
+    } else {
+        Err("Pack source does not support update checking")
+    }
+}
 fn run(nmu: &NMUClient) -> Result<(), &'static str> {
     if let Some(folder) = &nmu.work_folder {
         return match nmu.pack_source {
             PackSource::None => Err("No pack source set!"),
             _ => {
                 let folder_path = folder.as_path();
-                if let Ok(config) = load_config(folder_path){
+                if let Ok(config) = load_config(folder_path) {
                     match delete_by_config(folder_path, &config) {
-                        Ok(_) => {},
-                        Err(err) => { return Err(err);}
+                        Ok(_) => {}
+                        Err(err) => {
+                            return Err(err);
+                        }
                     };
                 };
                 match update_from_mrpack(&nmu.pack_source, folder) {
                     Ok(config) => write_config(&folder, &config),
-                    Err(str) => Err(str)
+                    Err(str) => Err(str),
                 }
             }
         };
