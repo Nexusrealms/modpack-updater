@@ -1,0 +1,2 @@
+## NMU - Nexusrealms modpack updater
+A tool to update your modrinth modpacks while keeping your own mods unchanged. This is normally handled by the modrinth launcher, with this tool aiming to provide that functionality to modpacks not hosted on modrinth
