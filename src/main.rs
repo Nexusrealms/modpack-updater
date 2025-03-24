@@ -8,7 +8,7 @@ use std::{fmt::Display, path::PathBuf};
 mod config;
 mod generate;
 mod mrpack;
-const UPDATE_ENDPOINT: &str = "/update";
+const _UPDATE_ENDPOINT: &str = "/update";
 fn main() {
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
@@ -120,8 +120,9 @@ impl eframe::App for NMUClient {
         });
     }
 }
-fn update(nmu: &NMUClient) -> Result<(), &'static str> {
-    if let PackSource::Url(url) = &nmu.pack_source {
+fn update(_nmu: &NMUClient) -> Result<(), &'static str> {
+    Err("Update checking is not implemented")
+    /*if let PackSource::Url(url) = &nmu.pack_source {
         if let Ok(response) = reqwest::blocking::get(url.clone() + UPDATE_ENDPOINT) {
             if let Ok(boolean) = serde_json::from_str(
                 response
@@ -142,7 +143,7 @@ fn update(nmu: &NMUClient) -> Result<(), &'static str> {
         }
     } else {
         Err("Pack source does not support update checking")
-    }
+    }*/
 }
 fn run(nmu: &NMUClient) -> Result<(), &'static str> {
     if let Some(folder) = &nmu.work_folder {
