@@ -1,6 +1,6 @@
 use std::{
     fs::{self, File},
-    io::Write,
+    io::{Cursor, Write},
     path::PathBuf,
 };
 
@@ -42,3 +42,25 @@ pub fn generate_at(path: &PathBuf) -> Result<(), &str> {
         Err(_) => Err("Could not read mod directory!"),
     }
 }
+/*pub fn generate_at_remote(ftp: &mut SftpStream) -> Result<(), &'static str> {
+    let mut vec: Vec<PathBuf> = Vec::new();
+    match ftp.list(Some("mods")) {
+        Ok(files) => {
+            for file_result in files {
+                let path : PathBuf = ["mods", file_result.as_str()].iter().collect();
+                vec.push(
+                    path
+                );
+            }
+            let config = UpdaterConfig {
+                files: vec,
+                pack_endpoint: None,
+            };
+            let json: String =
+                serde_json::to_string_pretty(&config).expect("Malformed struct somehow");
+            ftp.put_file("updater.json", &mut Cursor::new(json.as_bytes())).unwrap();
+            Ok(())
+        }
+        Err(_) => Err("Could not read mod directory!")
+    }
+}*/

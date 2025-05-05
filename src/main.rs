@@ -2,14 +2,19 @@ use config::{delete_by_config, load_config, write_config};
 //#![windows_subsystem = "windows"]
 use eframe::egui;
 use egui::{IconData, ThemePreference};
+use ftp::run_over_sftp;
 use generate::generate;
-use mrpack::update_from_mrpack;
-use std::{fmt::Display, path::PathBuf};
+use local::run_local;
+use mrpack::update_from_mrpack_to_local;
+use std::{env, fmt::Display, path::PathBuf};
 mod config;
+mod ftp;
 mod generate;
+mod local;
 mod mrpack;
 const _UPDATE_ENDPOINT: &str = "/update";
 fn main() {
+    dotenvy::dotenv().unwrap();
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
             .with_icon(load_icon())
@@ -40,11 +45,19 @@ fn load_icon() -> IconData {
         height: icon_height,
     }
 }
+#[derive(Clone)]
+pub struct FtpLocation {
+    address: String,
+    port: u32,
+    name: String,
+    password: String,
+}
 struct NMUClient {
     work_folder: Option<PathBuf>,
     pack_source: PackSource,
     pack_endpoint: String,
     last_run_result: String,
+    ftp_location: FtpLocation,
 }
 impl Default for NMUClient {
     fn default() -> Self {
@@ -53,6 +66,12 @@ impl Default for NMUClient {
             pack_source: PackSource::None,
             pack_endpoint: String::from(""),
             last_run_result: String::from("Not ran yet"),
+            ftp_location: FtpLocation {
+                address: String::from(std::env::var("DEFAULT_ADDRESS").unwrap()),
+                port: std::env::var("DEFAULT_PORT").unwrap().parse().unwrap(),
+                name: std::env::var("DEFAULT_NAME").unwrap(),
+                password: std::env::var("DEFAULT_PASSWORD").unwrap(),
+            },
         }
     }
 }
@@ -104,18 +123,27 @@ impl eframe::App for NMUClient {
                     Err(s) => String::from(s),
                 }
             }
-            if ui.button("Update").clicked() {
-                self.last_run_result = match update(self) {
-                    Ok(_) => String::from("Updated!"),
-                    Err(s) => String::from(s),
-                }
-            }
             if ui.button("Generate").clicked() {
                 self.last_run_result = match generate(self) {
                     Ok(_) => String::from("Generated!"),
                     Err(s) => String::from(s),
                 }
             }
+            ui.separator();
+            ui.group(|ui| {
+                let address_label = ui.label("Address: ");
+                ui.text_edit_singleline(&mut self.ftp_location.address)
+                    .labelled_by(address_label.id);
+                let name_label = ui.label("Name: ");
+                ui.text_edit_singleline(&mut self.ftp_location.name)
+                    .labelled_by(name_label.id);
+                let password_label = ui.label("Password: ");
+                ui.text_edit_singleline(&mut self.ftp_location.password)
+                    .labelled_by(password_label.id);
+                let port_label = ui.label("Port: ");
+                ui.add(egui::DragValue::new(&mut self.ftp_location.port).speed(10))
+                    .labelled_by(port_label.id);
+            });
             ui.label(&self.last_run_result);
         });
     }
@@ -147,27 +175,13 @@ fn update(_nmu: &NMUClient) -> Result<(), &'static str> {
 }
 fn run(nmu: &NMUClient) -> Result<(), &'static str> {
     if let Some(folder) = &nmu.work_folder {
-        return match nmu.pack_source {
-            PackSource::None => Err("No pack source set!"),
-            _ => {
-                let folder_path = folder.as_path();
-                if let Ok(config) = load_config(folder_path) {
-                    match delete_by_config(folder_path, &config) {
-                        Ok(_) => {}
-                        Err(err) => {
-                            return Err(err);
-                        }
-                    };
-                };
-                match update_from_mrpack(&nmu.pack_source, folder) {
-                    Ok(config) => write_config(&folder, &config),
-                    Err(str) => Err(str),
-                }
-            }
-        };
+        return run_local(folder, &nmu.pack_source);
+    } else if !nmu.ftp_location.address.is_empty() {
+        return run_over_sftp(nmu.ftp_location.clone(), nmu.pack_source.clone());
     }
-    Err("No work folder set!")
+    Err("No work location set!")
 }
+#[derive(Clone)]
 enum PackSource {
     FromFile(PathBuf),
     Url(String),

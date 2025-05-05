@@ -7,12 +7,12 @@ use std::{
 use serde::{Deserialize, Serialize};
 
 use crate::{config::UpdaterConfig, PackSource};
-pub fn update_from_mrpack(
+pub fn update_from_mrpack_to_local(
     source: &PackSource,
     work_folder: &PathBuf,
 ) -> Result<UpdaterConfig, &'static str> {
     match get_mrpack(source) {
-        Ok((pack, url_option)) => match transfer_pack_files(pack, work_folder) {
+        Ok((pack, url_option)) => match transfer_pack_files_to_local(pack, work_folder) {
             Ok(vec) => Ok(UpdaterConfig {
                 files: vec,
                 pack_endpoint: url_option,
@@ -66,7 +66,10 @@ pub fn get_mrpack(source: &PackSource) -> Result<(Mrpack, Option<String>), &'sta
         PackSource::None => Err("No pack source selected"),
     }
 }
-fn transfer_pack_files(pack: Mrpack, folder: &PathBuf) -> Result<Vec<PathBuf>, &'static str> {
+fn transfer_pack_files_to_local(
+    pack: Mrpack,
+    folder: &PathBuf,
+) -> Result<Vec<PathBuf>, &'static str> {
     let mut paths = Vec::new();
     for PackEntry { path, downloads } in pack.files {
         if !downloads.is_empty() {
