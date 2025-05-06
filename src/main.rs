@@ -66,7 +66,7 @@ impl Default for NMUClient {
             pack_endpoint: String::from(""),
             last_run_result: String::from("Not ran yet"),
             ftp_location: FtpLocation {
-                address: String::from(std::env::var("DEFAULT_ADDRESS").unwrap()),
+                address: std::env::var("DEFAULT_ADDRESS").unwrap(),
                 port: std::env::var("DEFAULT_PORT").unwrap().parse().unwrap(),
                 name: std::env::var("DEFAULT_NAME").unwrap(),
                 password: std::env::var("DEFAULT_PASSWORD").unwrap(),
@@ -83,7 +83,7 @@ impl eframe::App for NMUClient {
                 if let Some(path) = rfd::FileDialog::new().pick_folder() {
                     self.work_folder = Some(path);
                     if let Ok(updater_config) =
-                        load_config(&self.work_folder.as_ref().unwrap().as_path())
+                        load_config(self.work_folder.as_ref().unwrap().as_path())
                     {
                         if let Some(url) = updater_config.pack_endpoint {
                             self.pack_endpoint = url.clone();

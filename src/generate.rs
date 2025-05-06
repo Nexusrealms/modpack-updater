@@ -52,10 +52,8 @@ pub async fn generate_at_remote(ftp: &mut SftpSession) -> Result<(), &'static st
     match ftp.read_dir("mods").await {
         Ok(files) => {
             for file_result in files {
-                let path : PathBuf = ["mods", file_result.file_name().as_str()].iter().collect();
-                vec.push(
-                    path
-                );
+                let path: PathBuf = ["mods", file_result.file_name().as_str()].iter().collect();
+                vec.push(path);
             }
             let config = UpdaterConfig {
                 files: vec,
@@ -63,10 +61,14 @@ pub async fn generate_at_remote(ftp: &mut SftpSession) -> Result<(), &'static st
             };
             let json: String =
                 serde_json::to_string_pretty(&config).expect("Malformed struct somehow");
-            ftp.create("updater.json").await.unwrap().write(json.as_bytes()).await.unwrap();
+            ftp.create("updater.json")
+                .await
+                .unwrap()
+                .write_all(json.as_bytes())
+                .await
+                .unwrap();
             Ok(())
-
         }
-        Err(_) => Err("Could not read mod directory!")
+        Err(_) => Err("Could not read mod directory!"),
     }
 }

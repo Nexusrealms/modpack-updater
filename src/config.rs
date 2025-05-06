@@ -22,7 +22,8 @@ pub async fn load_config_remote(sftp: &mut SftpSession) -> Result<UpdaterConfig,
         Ok(mut file) => {
             let mut read_buf = String::new();
             file.read_to_string(&mut read_buf).await.unwrap();
-            serde_json::from_str(read_buf.as_str()).ok()},
+            serde_json::from_str(read_buf.as_str()).ok()
+        }
         Err(_e) => None,
     };
     result.ok_or("Could not get updater config!")
@@ -39,7 +40,10 @@ pub fn write_config(path: &Path, config: &UpdaterConfig) -> Result<(), &'static 
     }
     Err("Could not create config file")
 }
-pub async fn write_config_remote(sftp: &mut SftpSession, config: &UpdaterConfig) -> Result<(), &'static str> {
+pub async fn write_config_remote(
+    sftp: &mut SftpSession,
+    config: &UpdaterConfig,
+) -> Result<(), &'static str> {
     if let Ok(mut file) = sftp.create("updater.json").await {
         if let Ok(content) = serde_json::to_string_pretty(config) {
             return match file.write_all(content.as_bytes()).await {
@@ -58,19 +62,22 @@ pub struct UpdaterConfig {
 }
 pub fn delete_by_config(path: &Path, config: &UpdaterConfig) -> Result<(), &'static str> {
     for file in &config.files {
-        match fs::remove_file(path.join(file)) {
-            Ok(_) => {}
-            Err(_) => {}
-        }
+        let _ = fs::remove_file(path.join(file));
     }
     Ok(())
 }
-pub async fn delete_by_config_remote(sftp: &mut SftpSession, config: &UpdaterConfig) -> Result<(), &'static str> {
+pub async fn delete_by_config_remote(
+    sftp: &mut SftpSession,
+    config: &UpdaterConfig,
+) -> Result<(), &'static str> {
     for file in &config.files {
         match sftp.remove_file(file.to_string_lossy()).await {
-            Ok(_) => {println!("Deleted file {file:?}")}
-            Err(_) => {println!("Failed deleting {file:?}, continuing to delete other files");
-            }  
+            Ok(_) => {
+                println!("Deleted file {file:?}")
+            }
+            Err(_) => {
+                println!("Failed deleting {file:?}, continuing to delete other files");
+            }
         }
     }
     Ok(())

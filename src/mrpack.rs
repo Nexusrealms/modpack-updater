@@ -1,7 +1,7 @@
 use std::{
     fs,
     io::{self, Read, Write},
-    path::PathBuf,
+    path::{Path, PathBuf},
 };
 
 use russh_sftp::client::SftpSession;
@@ -11,7 +11,7 @@ use tokio::{io::AsyncWriteExt, runtime::Runtime};
 use crate::{config::UpdaterConfig, PackSource};
 pub fn update_from_mrpack_to_local(
     source: &PackSource,
-    work_folder: &PathBuf,
+    work_folder: &Path,
 ) -> Result<UpdaterConfig, &'static str> {
     let rt = Runtime::new().unwrap();
     let pack = rt.block_on(get_mrpack(source));
@@ -51,7 +51,7 @@ pub async fn get_mrpack(source: &PackSource) -> Result<(Mrpack, Option<String>),
                         pack_file
                             .read_to_string(&mut contents)
                             .expect("Could not read file content ?");
-                        return match serde_json::from_str::<Mrpack>(&contents.as_str()) {
+                        return match serde_json::from_str::<Mrpack>(contents.as_str()) {
                             Ok(pack) => Result::Ok((pack, None)),
                             Err(_) => Result::Err("Could not deserialize pack file"),
                         };
@@ -63,7 +63,8 @@ pub async fn get_mrpack(source: &PackSource) -> Result<(Mrpack, Option<String>),
         PackSource::Url(url) => {
             if let Ok(response) = reqwest::get(url).await {
                 let mut tmpfile = tempfile::tempfile().expect("Could not create tempfile");
-                tmpfile.write(&response.bytes().await.unwrap())
+                tmpfile
+                    .write_all(&response.bytes().await.unwrap())
                     .expect("Could not copy to tempfile");
                 if let Ok(mut zip) = zip::ZipArchive::new(tmpfile) {
                     if let Ok(mut pack_file) = zip.by_name("modrinth.index.json") {
@@ -71,7 +72,7 @@ pub async fn get_mrpack(source: &PackSource) -> Result<(Mrpack, Option<String>),
                         pack_file
                             .read_to_string(&mut contents)
                             .expect("Could not read file content ?");
-                        return match serde_json::from_str::<Mrpack>(&contents.as_str()) {
+                        return match serde_json::from_str::<Mrpack>(contents.as_str()) {
                             Ok(pack) => Result::Ok((pack, Some(url.clone()))),
                             Err(_) => Result::Err("Could not deserialize pack file"),
                         };
@@ -79,15 +80,12 @@ pub async fn get_mrpack(source: &PackSource) -> Result<(Mrpack, Option<String>),
                 }
                 return Err("Could not unzip downloaded mrpack");
             }
-            return Err("Could not GET mrpack file");
+            Err("Could not GET mrpack file")
         }
         PackSource::None => Err("No pack source selected"),
     }
 }
-fn transfer_pack_files_to_local(
-    pack: Mrpack,
-    folder: &PathBuf,
-) -> Result<Vec<PathBuf>, &'static str> {
+fn transfer_pack_files_to_local(pack: Mrpack, folder: &Path) -> Result<Vec<PathBuf>, &'static str> {
     let mut paths = Vec::new();
     for PackEntry { path, downloads } in pack.files {
         if !downloads.is_empty() {
@@ -116,7 +114,9 @@ async fn transfer_pack_files_to_remote(
         if !downloads.is_empty() {
             if let Ok(response) = reqwest::get(&downloads[0]).await {
                 if let Ok(mut file) = sftp.create(path.to_string_lossy()).await {
-                    file.write_all(&response.bytes().await.unwrap()).await.expect("Could not write into created file!");
+                    file.write_all(&response.bytes().await.unwrap())
+                        .await
+                        .expect("Could not write into created file!");
                     paths.push(path);
                 } else {
                     return Err("Could not create file in mod directory");
