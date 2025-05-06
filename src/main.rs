@@ -1,12 +1,11 @@
-use config::{delete_by_config, load_config, write_config};
+use config::load_config;
 //#![windows_subsystem = "windows"]
 use eframe::egui;
 use egui::{IconData, ThemePreference};
 use ftp::run_over_sftp;
 use generate::generate;
 use local::run_local;
-use mrpack::update_from_mrpack_to_local;
-use std::{env, fmt::Display, path::PathBuf};
+use std::{fmt::Display, path::PathBuf};
 mod config;
 mod ftp;
 mod generate;
@@ -148,7 +147,7 @@ impl eframe::App for NMUClient {
         });
     }
 }
-fn update(_nmu: &NMUClient) -> Result<(), &'static str> {
+fn _update(_nmu: &NMUClient) -> Result<(), &'static str> {
     Err("Update checking is not implemented")
     /*if let PackSource::Url(url) = &nmu.pack_source {
         if let Ok(response) = reqwest::blocking::get(url.clone() + UPDATE_ENDPOINT) {

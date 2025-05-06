@@ -1,16 +1,21 @@
 use std::{
     fs::{self, File},
-    io::{Cursor, Write},
+    io::Write,
     path::PathBuf,
 };
 
-use crate::{config::UpdaterConfig, NMUClient};
+use russh_sftp::client::SftpSession;
+use tokio::io::AsyncWriteExt;
 
-pub fn generate(client: &NMUClient) -> Result<(), &str> {
-    if let Some(work_folder) = &client.work_folder {
-        return generate_at(work_folder);
+use crate::{config::UpdaterConfig, ftp, NMUClient};
+
+pub fn generate(nmu: &NMUClient) -> Result<(), &str> {
+    if let Some(folder) = &nmu.work_folder {
+        return generate_at(folder);
+    } else if !nmu.ftp_location.address.is_empty() {
+        return ftp::generate_over_sftp(nmu.ftp_location.clone());
     }
-    Result::Err("The work folder needs to be set!")
+    Err("No work location set!")
 }
 pub fn generate_at(path: &PathBuf) -> Result<(), &str> {
     let mod_dir = path.join("mods");
@@ -42,12 +47,12 @@ pub fn generate_at(path: &PathBuf) -> Result<(), &str> {
         Err(_) => Err("Could not read mod directory!"),
     }
 }
-/*pub fn generate_at_remote(ftp: &mut SftpStream) -> Result<(), &'static str> {
+pub async fn generate_at_remote(ftp: &mut SftpSession) -> Result<(), &'static str> {
     let mut vec: Vec<PathBuf> = Vec::new();
-    match ftp.list(Some("mods")) {
+    match ftp.read_dir("mods").await {
         Ok(files) => {
             for file_result in files {
-                let path : PathBuf = ["mods", file_result.as_str()].iter().collect();
+                let path : PathBuf = ["mods", file_result.file_name().as_str()].iter().collect();
                 vec.push(
                     path
                 );
@@ -58,9 +63,10 @@ pub fn generate_at(path: &PathBuf) -> Result<(), &str> {
             };
             let json: String =
                 serde_json::to_string_pretty(&config).expect("Malformed struct somehow");
-            ftp.put_file("updater.json", &mut Cursor::new(json.as_bytes())).unwrap();
+            ftp.create("updater.json").await.unwrap().write(json.as_bytes()).await.unwrap();
             Ok(())
+
         }
         Err(_) => Err("Could not read mod directory!")
     }
-}*/
+}
